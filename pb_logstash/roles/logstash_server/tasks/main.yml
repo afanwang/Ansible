@@ -1,0 +1,97 @@
+---
+##  TBD - We should capability to remove existing elastisearch and upgrade 
+  - name: Check ElastiSearch Install Status
+    shell: rpm -qa | grep elasticsearch
+    register: es_status
+    failed_when: "'FAILED' in es_status.stderr"
+    changed_when: False
+#  - debug: msg="{{ es_status.stdout }}"
+  - name: 'Downloading ElastiSearch from S3'
+    shell: /usr/bin/s3cmd get s3://apps-bin/misc/elasticsearch-{{ ELASTI_VERSION }}.noarch.rpm --force chdir={{ install_dir }} 
+    when: es_status.stdout != 'elasticsearch-{{ ELASTI_VERSION }}-1.noarch'
+# change elasticsearch.yml settings - "/etc/elasticsearch/elasticsearch.yml" - TBD  
+  - name: 'Installing ElastiSearch' 
+    yum: name={{ item }} state=installed 
+    with_items:
+    - "{{ install_dir }}/elasticsearch-{{ ELASTI_VERSION }}.noarch.rpm"
+    notify:
+    - restart-elasticsearch
+    when: es_status.stdout != 'elasticsearch-{{ ELASTI_VERSION }}-1.noarch'
+  - name: 'Create ElasticCluster data-dirs and fix rights'
+    file: path={{ item.path }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }} state=directory
+    with_items:
+    - { path: '/data/elastic', owner: 'elasticsearch', group: 'company', mode: '755' }
+    - { path: '/data/elastic/logs', owner: 'elasticsearch', group: 'company', mode: '755' }
+    - { path: '/data/elastic/data', owner: 'elasticsearch', group: 'company', mode: '755' }
+    - { path: '/data/elastic/work', owner: 'elasticsearch', group: 'company', mode: '755' }
+  - name: 'Modify Elastisearch directory mappings'
+    lineinfile: dest={{ item.dest }} regexp="{{ item.regexp }}" line="{{ item.line }}" state=present 
+    with_items:
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^cluster.name:', line: 'cluster.name: {{ cluster_name }}'}
+# Node name to be made dynamic after DNS installation Currently static
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^node.name:', line: 'node.name: "{{ ansible_hostname }}"'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^node.master:', line: 'node.master: true'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^path.conf:', line: 'path.conf: /etc/elasticsearch/'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^path.data:', line: 'path.data: /data/elastic/data'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^path.logs:', line: 'path.logs: /data/elastic/logs'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^path.work:', line: 'path.work: /data/elastic/work'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^index.number_of_shards:', line: 'index.number_of_shards: 11'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^index.number_of_replicas:', line: 'index.number_of_replicas: 2'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^bootstrap.mlockall:', line: 'bootstrap.mlockall: true'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^transport.tcp.port:', line: 'transport.tcp.port: 9300'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^discovery.zen.minimum_master_nodes:', line: 'discovery.zen.minimum_master_nodes: 2'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^discovery.zen.ping.timeout:', line: 'discovery.zen.ping.timeout: 5s'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^discovery.zen.ping.unicast.hosts:', line: 'discovery.zen.ping.unicast.hosts: {{ es2_hosts }}'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^script.disable_dynamic:', line: 'script.disable_dynamic: false'}
+    notify:
+    - restart-elasticsearch
+  - name: 'Modify Elastisearch Role mappings - Master '
+    lineinfile: dest={{ item.dest }} regexp="{{ item.regexp }}" line="{{ item.line }}" state=present 
+    with_items:
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^node.master:', line: 'node.master: true'}
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^node.data:', line: 'node.data: false'}
+    notify:
+    - restart-elasticsearch
+    when: ansible_eth0.ipv4.address in groups['logstash-eredis']
+  - name: 'Modify Elastisearch Role mappings - Data/Web'
+    lineinfile: dest={{ item.dest }} regexp="{{ item.regexp }}" line="{{ item.line }}" state=present 
+    with_items:
+    - { dest: '/etc/elasticsearch/elasticsearch.yml', regexp: '^node.data:', line: 'node.data: true'}
+    notify:
+    - restart-elasticsearch
+    when: ansible_eth0.ipv4.address in groups['logstash-eweb']
+  - name: "Install elastisearch plugin"
+    shell: /usr/share/elasticsearch/bin/plugin -install lmenezes/elasticsearch-kopf 
+    when: es_status.stdout != 'elasticsearch-{{ ELASTI_VERSION }}-1.noarch'
+    notify:
+    - restart-elasticsearch
+  - name: 'Rollout Index-Cleanup Script file'
+    copy: src=../files/logstash-delete-index.sh dest=/home/admin/logstash-delete-index.sh owner=admin group=company mode=755
+  - name: 'Setup Crontab for index-cleanup'
+    cron: name="logstash-index-cleanup" minute="00" hour="10" user=root job="/home/admin/logstash-delete-index.sh > /dev/null"
+    notify:
+    - restart-crond
+## To be installed on Master(Redis server only)
+  - name: Check Redis Install Status
+    shell: rpm -qa | grep redis
+    register: redis_status
+    failed_when: "'FAILED' in redis_status.stderr"
+    changed_when: False
+#    when: ansible_eth0.ipv4.address in groups['logstash-eredis']
+  - name: 'Installing Redis' 
+    yum: name={{ item }} state=installed 
+    with_items:
+    - "http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm"
+    - redis
+    when: redis_status.stdout != 'redis-2.4.10-1.el6.x86_64' and ansible_eth0.ipv4.address in groups['logstash-eredis']
+    notify:
+    - restart-redis
+  - name: 'Modify Redis configuration '
+    lineinfile: dest={{ item.dest }} regexp="{{ item.regexp }}" line="{{ item.line }}" state={{ item.stage }} 
+    with_items:
+    - { dest: '/etc/redis.conf', regexp: '^bind 127.0.0.1', line: '# bind 127.0.0.1', stage: 'absent'}
+    - { dest: '/etc/redis.conf', regexp: '^port 6793', line: 'port 7963', stage: 'absent'}
+    - { dest: '/etc/redis.conf', regexp: '^port 7963', line: 'port 7963', stage: 'present'}
+    when: ansible_eth0.ipv4.address in groups['logstash-eredis']
+    notify:
+    - restart-redis

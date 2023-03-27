@@ -1,0 +1,11 @@
+---
+- name: Haproxy
+  hosts: '{{ target }}'
+  user: '{{ user }}'
+  sudo: true
+  gather_facts: true
+  vars:
+    ssh_user: root
+    ansible_os_family: RedHat
+  roles:
+    - roles/haproxy_server

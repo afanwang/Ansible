@@ -1,0 +1,4 @@
+---
+haproxy_port: 80
+haproxy_ssl_port: 1443
+#random_number: "{{ 100 | random }}"

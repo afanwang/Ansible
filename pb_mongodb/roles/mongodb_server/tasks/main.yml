@@ -1,0 +1,36 @@
+---
+  - name: 'Prepare server for MongoDB'
+    copy: src=../files/mongodb.repo dest=/etc/yum.repos.d/ mode=764 owner=root group=root
+    when: "'{{ ansible_eth0.ipv4.address }}' in groups['all-mongodb']"
+  - name: 'Install Mongodb'
+    yum: name={{ item }} state=present
+    with_items:
+    - mongo-10gen 
+    - mongo-10gen-server
+    notify:
+     - restart-mongodb
+  - name: 'Create Directory and fix rights'
+    file: path={{ item.path }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }} state=directory recurse=yes
+    with_items:
+    - { path: '/data', owner: 'mongod', group: 'company', mode: '776' }
+    - { path: '/data/mongo', owner: 'mongod', group: 'mongod', mode: '776' }
+# START The below is for standalone and not for replication
+  - name: 'Copy Conf file (Standalone Server)'
+    template: src=../templates/mongod.conf.j2 dest=/etc/mongod.conf owner=root mode=644
+    notify: restart-mongodb
+# END Standalone Config
+#  - name: host-file modification
+#    lineinfile: dest=/etc/hosts regexp="^{{ item }}" line='{{ item }}   {{ inventory_hostname }}' state=present create=yes 
+#    with_items:groups[{{ ENV }}_mongodb ]
+#    when: ansible_eth0.ipv4.address in groups['prod*-mongodb']
+  - name: Install Mongodb-Python Module
+    yum: name=python-pymongo state=present
+    when: ansible_eth0.ipv4.address in groups['all-mongodb']
+  - name: 'Start MongoDB Service'
+    action: service name=mongod state=started enabled=yes
+  - name: pause
+    pause: seconds=20
+#  - name: 'Update Mongo admin Password'
+#    mongodb_user: database=admin name=dbadmin login_host={{ ansible_eth0.ipv4.address }} login_user={{ mongodb_admin_user }} login_password={{ mongodb_admin_password }} roles='userAdminAnyDatabase,dbAdminAnyDatabase,clusterAdmin,readWriteAnyDatabase' state=present
+#  - name: 'Copy Conf file with dbadmin password credentials'
+#    template: src=../templates/mongod.cnf.j2 dest=/root/.mongod.cnf owner=root mode=600

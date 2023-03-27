@@ -1,0 +1,5 @@
+pb_webapps/group_vars
+pb_cassandra/group_vars
+pb_icinga/group_vars
+pb_jenkins/group_vars
+pb_logstash/group_vars

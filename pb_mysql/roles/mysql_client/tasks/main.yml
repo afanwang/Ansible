@@ -1,0 +1,7 @@
+---
+# Mysql Client packages to access MySQL Server 
+   - name: 'Mysql(MariaDB) client Packages installation using YUM'
+     yum: name={{ item.package }} state={{ item.state }}
+     with_items:
+     - { package: 'mysql', state: 'present' }
+     - { package: 'mysql-devel', state: 'present' }

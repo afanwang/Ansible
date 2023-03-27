@@ -1,0 +1,19 @@
+input {
+	redis {
+		host => "{{ ansible_eth0.ipv4.address }}"
+		port => 7963
+		data_type => "list"
+		key => "logstash"
+		codec => "json"
+	}
+	syslog {
+    	type => syslog
+		port => 514
+	}
+}
+output {
+	stdout { codec => json }
+	elasticsearch_http {
+	   host => "{{ ansible_eth0.ipv4.address }}"
+	}
+}

@@ -1,0 +1,10 @@
+---
+## Run jenkins_full to include Java and other roles 
+- hosts: '{{ target }}'
+  user: '{{ user }}'
+  sudo: yes
+  vars_files:
+  - "group_vars/app_variables.yml"
+  roles:
+  - jenkins_master
+  - build_jobs

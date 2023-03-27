@@ -1,0 +1,157 @@
+input {
+  file {
+    type => "syslog"
+    path => ["/var/log/secure", "/var/log/messages"]
+    exclude => ["*.gz", "*.zip" ,"shipper.log", "/var/log/logstash-ship.log"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb"
+  }
+{% if ansible_eth0.ipv4.address in groups['all-tomcat-servers'] %}
+  file {
+    type => "apache"
+    path => ["{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/*_access_log.*.txt"]
+    exclude => ["*.gz", "*.zip"]
+    codec => "json"
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb1"
+  }
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-tomcat-servers'] %}
+  file {
+    type => "tomcat"
+    path => ["{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/catalina.out"]
+    exclude => ["*.gz", "*.zip"]
+    add_field => [ "environment", "{{ ENV }}"]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb10"
+  }
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-webapps'] %}
+  file {
+    type => "tomcat"
+    path => ["{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/webadmin.log","{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/email.log","{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/second-screen.log"]
+    exclude => ["*.gz", "*.zip"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb2"
+  }
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-di'] %}
+  file {
+    type => "tomcat"
+    path => ["{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/bi-web.log"]
+    exclude => ["*.gz", "*.zip"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb4"
+  }
+{% endif %}
+ {% if ansible_eth0.ipv4.address in groups['all-batch'] %}
+  file {
+    type => "tomcat"
+    path => ["{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/bi-batch.log", "{{ install_dir }}/{{ ENV }}/tomcat-{{ TOMCAT_VERSION }}/logs/bi-reports.log"]
+    exclude => ["*.gz", "*.zip"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb5"
+  }  
+{% endif %}
+ {% if ansible_eth0.ipv4.address in groups['all-cassandra'] %}
+  file {
+    type => "cassandra"
+    path => ["/var/log/cassandra/system.log"]
+    exclude => ["*.gz", "*.zip"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb7"
+  }  
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-payments'] %}
+  file {
+    type => "payments"
+    path => ["/opt/company/{{ ENV }}/logs/*.log"]
+    exclude => ["*.gz", "*.zip"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb9"
+  }
+{% endif %}
+}
+filter {
+  if [type] == "syslog" {
+  grok {  
+        patterns_dir => "/opt/logstash/patterns"
+        match => [ "message", "%{SYSLOGLINE}" ]
+       } 
+  }
+  if [type] == "apache" { 
+  grok {
+       patterns_dir => "/opt/logstash/patterns"
+       match => [ "message", "%{COMMONAPACHELOG}" ]
+       }
+  } 
+  if [type] == "jabber" { 
+  grok {
+       patterns_dir => "/opt/logstash/patterns"
+       match => [ "message", "%{YEAR}.%{MONTH}.%{DAY} %{PROXYTIME}" ]
+       }
+  }
+  if [type] == "cassandra" { 
+  grok {
+        patterns_dir => "/opt/logstash/patterns"  
+        match => [ "message", "%{PROXYTIME} %{SYSLOG5424SD:thread} %{LOGLEVEL:loglevel}|(^%{CATALINA_DATESTAMP})|(^%{TOMCAT_TIMESTAMP})|(^%{LOGLEVEL})|%{LOGLEVEL:loglevel}%{SYSLOG5424SD:thread} %{YEAR}-%{MONTH}-%{DAY} %{PROXYTIME}" ] 
+       }
+  } 
+  if [type] == "tomcat" { 
+  grok {
+        patterns_dir => "/opt/logstash/patterns"  
+        match => [ "message", "%{PROXYTIME} %{SYSLOG5424SD:thread} %{LOGLEVEL:loglevel}|(^%{CATALINA_DATESTAMP})|(^%{TOMCAT_TIMESTAMP})|(^%{LOGLEVEL})" ] 
+       }
+  } 
+  if [type] == "payments" { 
+  grok {
+        patterns_dir => "/opt/logstash/patterns"  
+        match => [ "message", "%{PROXYTIME} %{SYSLOG5424SD:thread} %{LOGLEVEL:loglevel}|(^%{CATALINA_DATESTAMP})|(^%{TOMCAT_TIMESTAMP})|(^%{LOGLEVEL})" ] 
+       }
+  } 
+  multiline {
+        patterns_dir => "/opt/logstash/patterns"  
+        pattern => "(^\s)"
+        negate => "false"
+        what => "previous"
+   }
+  multiline {
+        patterns_dir => "/opt/logstash/patterns"  
+        pattern => "%{PROXYTIME} %{SYSLOG5424SD:thread} %{LOGLEVEL:loglevel}|(^%{CATALINA_DATESTAMP})|(^%{TOMCAT_TIMESTAMP})|(^%{LOGLEVEL})"
+        negate => "true"
+        what => "previous"
+   }
+}
+output {
+  redis {
+{% if ansible_eth0.ipv4.address in groups['logstash-servers'] %}
+  host => "{{ logstash_localip }}"
+{% elif ansible_eth0.ipv4.address in groups['allprod2hosts'] %}
+  host => "{{ logstash_publicip }}"
+{% elif ansible_eth0.ipv4.address in groups['allprod3hosts'] %}
+  host => "{{ logstash_publicip }}"
+{% elif ansible_eth0.ipv4.address in groups['allprod4hosts'] %}
+  host => "{{ logstash_publicip }}"
+{% elif ansible_eth0.ipv4.address in groups['allstagehosts'] %}
+  host => "{{ logstash_localip }}"
+{% elif ansible_eth0.ipv4.address in groups['allqa35hosts'] %}
+  host => "{{ logstash_localip }}"
+{% elif ansible_eth0.ipv4.address in groups['allqa4hosts'] %}
+  host => "{{ logstash_localip }}"
+{% elif ansible_eth0.ipv4.address in groups['alladminhosts'] %}
+  host => "{{ logstash_localip }}"
+{% endif %}
+    port => 7963
+    data_type => "list"
+    codec => "json"
+    key => "logstash"
+    timeout => 60
+  }
+}

@@ -1,0 +1,10 @@
+---
+  - include_vars: "../vars/{{ job_name }}.yml"
+  - name: 'Create job-directory - {{ job_name }}'
+    file: path={{ item.dir }} owner=test_user group=company mode=764 state={{ item.state }} 
+    with_items:
+    - { dir: '{{ install_dir }}/jenkins/jobs/{{ job_name }}', state: 'directory' }
+    - { dir: '{{ install_dir }}/jenkins/jobs/{{ job_name }}/builds', state: 'directory' }
+    when: "'{{ ansible_eth0.ipv4.address }}' in groups['ci-buildmaster']" 
+  - name: 'Template file rollout'
+    template: src="../templates/build-jobs/{{ CONFIG_FILE }}" dest="{{ install_dir }}/jenkins/jobs/{{ job_name }}/config.xml" owner=test_user group=company mode=644

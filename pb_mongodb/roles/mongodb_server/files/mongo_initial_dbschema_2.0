@@ -1,0 +1,194 @@
+/**
+ * To run the script please do the following
+ *  - create dir for 'catalogue-test' db ex 'mkdir /var/lib/mongo/catalogue-test'
+ *  - start mongo server 'mongod --dbpath <path/to/catalogue-test/dir>'
+ *  - from the shell run 'mongo <path-to-file>/mongo-catalogue-only-meta.js'
+ *  - in spring bean definition bean id="catalogueTemplate" change the factory to ref="catalogue-test-factory"
+ */
+
+(function generateTestData(dbName, mongoRef) {
+
+    var id = (function id() {
+        var ids = {};
+        return function (prefix) {
+            if (!ids[prefix]) {
+                ids[prefix] = 1;
+            }
+            return prefix + "-" + (ids[prefix])++;
+        };
+    })();
+
+    var db = mongoRef.getSiblingDB(dbName),
+        chainCollection = db.getCollection("chains"),
+        locationCollection = db.getCollection("locations"),
+        gameCollection = db.getCollection("games"),
+        deviceCollection = db.getCollection("devices"),
+        metadataCollection = db.getCollection("metadata"),
+        coreApksCollection = db.getCollection("coreApks");
+
+    gameCollection.drop();
+    deviceCollection.drop();
+    chainCollection.drop();
+    locationCollection.drop();
+    metadataCollection.drop();
+    coreApksCollection.drop();
+
+    var genresVals = ["Brain & Puzzle", "Sports", "Action", "Arcade", "Card & Board", "Preschool", "Fun Apps"],
+        audienceVals = ["Early Childhood", "Everyone 7+", "Teen", "Mature"],
+        modesVals = ["Single Player", "Multi-Player"],
+        tagsVals = ["blood", "trash"],
+        deviceTypesVals = ["SECOND_SCREEN", "PATRON_TABLET"];
+
+    //METADATA section
+    metadataCollection.insert([
+        {_id: id("mt"), name: "genres", values: genresVals},
+        {_id: id("mt"), name: "audience", values: audienceVals},
+        {_id: id("mt"), name: "modes", values: modesVals},
+        {_id: id("mt"), name: "tags", values: tagsVals},
+        {_id: id("mt"), name: "deviceTypes", values: deviceTypesVals}
+    ]);
+
+    var random = function (limit) {
+        return Math.floor(Math.random() * limit);
+    };
+
+    db.accounts.save({"_id": "1", "login": "root",
+        "password": "6b7d3c37648fa5bd5f8295ef5312ba0dd202712b9b811b0ccdef182f913fb6e115fef1ff50ce841459351f9578526555ebadf4679ef935ea6973e535fd728f09",
+        "passwordSalt": "lSoUHJp;<]}3mZUyWMO ",
+        "status": "ACTIVE", "firstName": "root", "lastName": "company", "email": "root@company.com", "roles": ["SYSTEM_ADMIN"]});
+
+    db.coreApks.insert([
+        {
+            "_id": "1",
+            "_class": "com.company.caw.model.application.AndroidApplication",
+            "nm": "Analytics",
+            "g": "com.company.android",
+            "a": "bi-android-event-service",
+            "platforms": ["PATRON_TABLET"]
+        },
+        {
+            "_id": "2",
+            "_class": "com.company.caw.model.application.AndroidApplication",
+            "nm": "Admin",
+            "g": "com.company.android",
+            "a": "global-android-syncservice",
+            "platforms": ["PATRON_TABLET"]
+        },
+        {
+            "_id": "3",
+            "_class": "com.company.caw.model.application.AndroidApplication",
+            "nm": "Payments",
+            "g": "com.company.android",
+            "a": "global-android-payment",
+            "platforms": ["PATRON_TABLET"]
+        },
+        {
+            "_id": "4",
+            "_class": "com.company.caw.model.application.AndroidApplication",
+            "nm": "Dashboard",
+            "g": "com.company.android",
+            "a": "global-android-dashboard",
+            "platforms": ["PATRON_TABLET"]
+        },
+        {
+            "_id": "5",
+            "_class": "com.company.caw.model.application.AndroidApplication",
+            "nm": "eMenu",
+            "g": "com.company.android",
+            "a": "eservice-android-menu",
+            "platforms": ["PATRON_TABLET"]
+        },
+        {
+            "_id": "6",
+            "_class": "com.company.caw.model.application.AndroidApplication",
+            "nm": "Game Catalog",
+            "g": "com.company.android",
+            "a": "game-store",
+            "platforms": ["PATRON_TABLET"]
+        }
+    ]
+    );
+
+    db.ads_display_zone.insert([
+        {"active": true, "name": "Attraction Loop", "comment": "Attraction Loop is screen saver running during the user session. The ads running in AL will not show if the current page is 'welcome page'. We will modify current AL logic to display images only defined by ads management tool. It will not show the image/video from dashboard", "image": true, "video": true, "size_x": 1280, "size_y": 800, "rotation_duration": 10, "audio": true, "controls": true, "file_type": ["png", "jpg", "mp4", "avi"], "action": ["View only", "Launch application", "mp4", "Go to an internal screen"], "event": ["View", "Play"]},
+        {"active": false, "name": "Home Page", "comment": "", "image": true, "video": true, "size_x": 400, "size_y": 400, "rotation_duration": 10, "audio": true, "controls": true, "file_type": ["png", "jpg", "mp4", "avi"], "action": ["No"], "event": ["View"]},
+        {"active": false, "name": "Featured Drinks", "comment": "", "image": true, "video": true, "size_x": 300, "size_y": 250, "rotation_duration": 10, "audio": true, "controls": true, "file_type": ["png", "jpg", "mp4", "avi"], "action": ["No"], "event": ["View"]},
+        {"active": false, "name": "Drink Menu", "comment": "", "image": true, "video": true, "size_x": 180, "size_y": 150, "rotation_duration": 10, "audio": true, "controls": false, "file_type": ["png", "jpg", "mp4", "avi"], "action": ["No"], "event": ["View"]}
+    ]);
+
+    db.security.insert({
+        role: "SYSTEM_ADMIN",
+        actions: [
+            "ACCOUNT_MANAGEMENT",
+            "location_MANAGEMENT",
+            "APK_MANAGEMENT",
+            "GLOBAL_SETTINGS",
+            "CHAIN_MANAGEMENT",
+            "GAME_CATALOG",
+            "THEME",
+            "DEVICE",
+            "BUNDLE",
+            "GAME",
+            "PROMOTION",
+            "FILLER",
+            "WAITER",
+            "IMPORT_EXPORT_MENU",
+            "EMENU",
+            "DEVICE_LOGS",
+            "CHANGES_HISTORY",
+            "PERMISSIONS_MANAGEMENT"
+        ]
+    });
+
+    db.security.insert({
+        role: "ACCOUNT_MANAGER",
+        actions: [
+            "ACCOUNT_MANAGEMENT"
+        ]
+    });
+
+    db.security.insert({
+        role: "CHAIN_MANAGER",
+        actions: [
+            "ACCOUNT_MANAGEMENT",
+            "location_MANAGEMENT",
+            "CHAIN_MANAGEMENT",
+            "GAME_CATALOG",
+            "THEME",
+            "DEVICE",
+            "BUNDLE",
+            "GAME",
+            "PROMOTION",
+            "FILLER",
+            "WAITER",
+            "IMPORT_EXPORT_MENU",
+            "EMENU"
+        ]
+    });
+
+    db.security.insert({
+        role: "location_MANAGER",
+        actions: [
+            "ACCOUNT_MANAGEMENT",
+            "location_MANAGEMENT",
+            "GAME_CATALOG",
+            "THEME",
+            "DEVICE",
+            "BUNDLE",
+            "GAME",
+            "PROMOTION",
+            "FILLER",
+            "WAITER",
+            "IMPORT_EXPORT_MENU",
+            "EMENU"
+        ]
+    });
+
+    db.security.insert({
+        role: "SERVER",
+        actions: [
+            "WAITER"
+        ]
+    });
+
+})("company", db);

@@ -1,0 +1,4 @@
+## USAGE ## ansible-playbook  pb_logstash/logstash_client.yml --extra-vars "target=allqa4hosts user=admin" -v
+--- 
+  - include: ../pb_webapps/javaonly_install.yml hosts=${target}
+  - include: logstash_rollout.yml hosts=${target}

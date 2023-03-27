@@ -1,0 +1,7 @@
+---
+- hosts: '{{ target }}'
+  user: '{{ user }}'
+  sudo: yes
+ # vars_files:
+  roles:
+  - base_system

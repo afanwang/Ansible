@@ -1,0 +1,6 @@
+ENV: ADMIN
+install_dir: /home/test_user/ADMIN
+CASS_SCHEMA: qa2_schema.ddl
+CASS_VERSION: 2.0.6
+CASS_CLUSTER: admin_cluster
+JENKINS_USER: test_user

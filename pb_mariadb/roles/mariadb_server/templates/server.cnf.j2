@@ -1,0 +1,53 @@
+#{{ ansible_managed }}
+# These groups are read by MariaDB server.
+# Use it for options that only the server (but not clients) should see
+#
+# See the examples of server my.cnf files in /usr/share/mysql/
+#
+
+# this is read by the standalone daemon and embedded servers
+[server]
+
+# this is only for the mysqld standalone daemon
+[mysqld]
+#datadir                = /var/lib/mysql
+datadir         = /data/mysql
+#
+#pid-file       =/var/lib/mysql
+#socket          = /var/lib/mysql/mysql.sock
+port            = 3306
+#skip-networking
+bind-address    = {{ ansible_eth0.ipv4.address }}
+skip-external-locking
+key_buffer_size = 256M
+max_allowed_packet = 1M
+table_open_cache = 256
+sort_buffer_size = 1M
+read_buffer_size = 1M
+read_rnd_buffer_size = 4M
+myisam_sort_buffer_size = 64M
+thread_cache_size = 8
+query_cache_size= 16M
+log-bin=mysql-bin
+binlog_format=mixed
+server-id       = 1
+# Remove the next comment character if you are not familiar with SQL
+# #safe-updates
+#
+#
+# thread_concurrency = 8
+# this is only for embedded server
+
+# This group is only read by MariaDB-5.5 servers.
+# If you use the same .cnf file for MariaDB of different versions,
+# use this group for options that older servers don't understand
+[mysqld-5.5]
+
+# These two groups are only read by MariaDB servers, not by MySQL.
+# If you use the same .cnf file for MySQL and MariaDB,
+# you can put MariaDB-only options here
+[mariadb]
+#datadir=/data/mysql
+#socket=/data/mysql/mysql.sock
+
+[mariadb-5.5]

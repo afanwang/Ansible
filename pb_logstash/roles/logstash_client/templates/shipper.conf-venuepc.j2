@@ -1,0 +1,70 @@
+input {
+  file {
+    type => "syslog"
+    path => ["/var/log/secure", "/var/log/messages"]
+    exclude => ["*.gz", "*.zip" ,"shipper.log", "/var/log/logstash-ship.log"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb0"
+  }
+  file {
+    type => "apache"
+    path => ["/home/location_user/location_PC/tomcat/logs/*_access_log.*.txt"]
+    exclude => ["*.gz", "*.zip"]
+    codec => "json"
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb1"
+  }
+  file {
+    type => "VPC-cache-logs"
+    path => ["/var/update-service-cache/logs/cache-app-current.log", "/tmp/update-service-cache/logs/cache-app-current.log"]
+    exclude => ["*.gz", "*.zip"]
+    add_field => [ "environment", "{{ ENV }}" ]
+    add_field => [ "Host_IP", "{{ ansible_eth0.ipv4.address }}" ] 
+    sincedb_path => "/data/logger/sincedb3"
+  }
+}
+filter {
+  if [type] == "syslog" {
+  grok {  
+        patterns_dir => "/opt/logstash/patterns"
+        match => [ "message", "%{SYSLOGLINE}" ]
+       } 
+  }
+  if [type] == "apache" { 
+  grok {
+       patterns_dir => "/opt/logstash/patterns"
+       match => [ "message", "%{COMMONAPACHELOG}" ]
+       }
+  } 
+  if [type] == "VPC-cache-logs" { 
+  grok {
+        patterns_dir => "/opt/logstash/patterns"  
+        match => [ "message", "%{PROXYTIME} %{SYSLOG5424SD:thread} %{LOGLEVEL:loglevel}" ] 
+       }
+  } 
+  if [type] == "tomcat" { 
+  grok {
+        patterns_dir => "/opt/logstash/patterns"  
+        match => [ "message", "%{PROXYTIME} %{SYSLOG5424SD:thread} %{LOGLEVEL:loglevel}" ] 
+       }
+  } 
+  multiline {
+        patterns_dir => "/opt/logstash/patterns"  
+        pattern => "(^\s)|(^%{TIMESTAMP_ISO8601})|(^%{LOGLEVEL})"
+        negate => "false"
+        what => "previous"
+  }
+}
+output {
+  redis {
+    host => "{{ logstash_publicip }}"
+    port => 7963
+    data_type => "list"
+    codec => "json"
+    key => "logstash"
+    timeout => 60
+  }
+}
+

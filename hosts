@@ -1,0 +1,6 @@
+[crypto-server]
+30.30.1.11 newhostname=crypto.dc.test
+
+[loadbalancer]
+30.30.3.11 newhostname=lb-master.dc.test
+30.30.3.12 newhostname=lb-standby.dc.test

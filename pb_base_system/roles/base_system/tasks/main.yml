@@ -1,0 +1,153 @@
+---
+# Basic packages for new host (general for all systems) 
+# Set  in /etc/sysctl.conf
+   - name: 'kernel tuning'
+     sysctl: name={{ item.name }} value={{ item.value }} state=present ignoreerrors=yes  reload=yes
+     with_items:
+     - { name: 'net.ipv4.ip_forward', value: '0' }
+     - { name: 'net.ipv4.conf.default.rp_filter', value: '1' }
+     - { name: 'net.ipv4.conf.default.accept_source_route', value: '0' }
+     - { name: 'kernel.sysrq', value: '0' }
+     - { name: 'kernel.core_uses_pid', value: '1' }
+     - { name: 'net.ipv6.conf.all.disable_ipv6', value: '1' }
+     - { name: 'net.ipv6.conf.default.disable_ipv6', value: '1' }
+     - { name: 'net.ipv4.tcp_syncookies', value: '1' }
+     - { name: 'net.bridge.bridge-nf-call-iptables', value: '0' }
+     - { name: 'net.bridge.bridge-nf-call-arptables', value: '0' }
+     - { name: 'kernel.msgmnb', value: '65536' }
+     - { name: 'kernel.msgmax', value: '65536' }
+     - { name: 'kernel.shmmax', value: '68719476736' }
+     - { name: 'kernel.shmall', value: '4294967296' }
+     - { name: 'vm.overcommit_memory', value: '1' }
+     - { name: 'vm.overcommit_ratio', value: '100' }
+     - { name: 'kernel.panic', value: '30' }
+     - { name: 'kernel.panic_on_oops', value: '1' }
+     - { name: 'kernel.print-fatal-signals', value: '1' }
+     - { name: 'kernel.sem', value: '"250 32000 100 128"' }
+     - { name: 'fs.file-max', value: '100000' }
+   - name: 'Import RPM Repos'
+     get_url: url=http://s3tools.org/repo/RHEL_6/s3tools.repo dest=/etc/yum.repos.d mode=0444
+# Need to do this on nodes which fail epel repo update
+# sudo yum clean all 
+# sudo yum --disablerepo="epel" update nss
+   - name: 'Packages installation using YUM'
+     yum: name={{ item.package }} state={{ item.state }} 
+     with_items:
+ #    - { package: '*', state: 'latest' }
+     - { package: 'dmidecode', state: 'present' }
+#     - { package: 'mysql-libs', state: 'absent' }
+     - { package: 'ntp', state: 'present' }
+     - { package: 'yum-utils', state: 'present' }
+     - { package: 'automake', state: 'present' }
+     - { package: 'autoconf', state: 'present' }
+     - { package: 'make', state: 'present' }
+     - { package: 'gcc', state: 'present' }
+     - { package: 'gcc-c++', state: 'present' }
+     - { package: 'flex', state: 'present' }
+     - { package: 'bison', state: 'present' }
+     - { package: 'kernel-devel', state: 'present' }
+     - { package: 'kernel-headers', state: 'present' }
+     - { package: 'nmap', state: 'present' }
+     - { package: 'wget', state: 'present' }
+     - { package: 'curl', state: 'present' }
+     - { package: 'strace', state: 'present' }
+     - { package: 'openssh-clients', state: 'present' }
+     - { package: 'screen', state: 'present' }
+     - { package: 'man', state: 'present' }
+     - { package: 'file', state: 'present' }
+     - { package: 'rsync', state: 'present' }
+     - { package: 'git', state: 'present' }
+     - { package: 'lsof', state: 'present' }
+     - { package: 'unzip', state: 'present' }
+     - { package: 'zip', state: 'present' }
+     - { package: 'mlocate', state: 'present' }
+     - { package: 'traceroute', state: 'present' }
+     - { package: 'tcpdump', state: 'present' }
+     - { package: 'sysstat', state: 'present' }
+     - { package: 'cronie', state: 'present' }
+     - { package: 'cronie-anacron', state: 'present' }
+     - { package: 'crontabs', state: 'present' }
+     - { package: 'http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm', state: 'present' }
+ #    - { package: 'http://packages.sw.be/rpmforge-release/rpmforge-release-0.5.3-1.el6.rf.x86_64.rpm', state: 'present' }
+     - { package: 'iotop', state: 'present' }
+     - { package: 'pciutils', state: 'present' }
+     - { package: 'exim', state: 'absent' }
+     - { package: 'cyrus-sasl-plain', state: 'present' }
+     - { package: 'sendmail-cf', state: 'present' }
+     - { package: 'sendmail', state: 'present' }
+     - { package: 'mailx', state: 'present' }
+     - { package: 'redhat-lsb', state: 'present' }
+     - { package: 's3cmd', state: 'present' }
+     - { package: 'vim', state: 'present' }
+     - { package: 'telnet', state: 'present' }
+   - name: 'Packages installation using YUM - for mongo Servers'
+     yum: name={{ item.package }} state={{ item.state }} 
+     with_items:
+     - { package: 'pymongo', state: 'latest' }
+     when: ansible_eth0.ipv4.address in groups['all-mongodb']
+   - name: 'Packages installation using YUM for payment servers only'
+     yum: name={{ item.package }} state={{ item.state }} 
+     with_items:
+     - { package: 'openvpn', state: 'present' }
+     when: ansible_eth0.ipv4.address in groups['master-payment']
+# Configure Sendmail Features
+   - name: 'Sendmail Copy sendmail.mc'
+     template: src=../templates/sendmail.mc.j2 dest=/etc/mail/sendmail.mc owner=root mode=644
+     register: sendmail
+     changed_when: "sendmail.changed == True"
+ #  - debug: msg="{{ sendmail.changed }}" 
+   - name: 'Recompile sendmail'
+     shell: chdir=/etc/mail make; make restart
+     changed_when: "sendmail.changed == True"
+# Import rpm keys
+   - name: 'Import RPM keys'
+     action: rpm_key key=http://apt.sw.be/RPM-GPG-KEY.dag.txt state=present
+#Config files modifications
+   - name: 'Set Limits' 
+     lineinfile: dest=/etc/security/limits.conf regexp="^\* soft nofile" line="* soft nofile 65536" state=present create=yes
+     lineinfile: dest=/etc/security/limits.conf regexp="^\* hard nofile" line="* hard nofile 65536" state=present create=yes
+   - name: 'Set rsyslog options' 
+     lineinfile: dest=/etc/sysconfig/rsyslog regexp="^SYSLOGD_OPTIONS=" line='SYSLOGD_OPTIONS="-c 5 -e"' state=present create=yes
+   - name: 'Disable ipv6'
+     lineinfile: dest=/etc/sysconfig/network regexp=^NETWORKING_IPV6= line=NETWORKING_IPV6=no state=present create=yes
+     lineinfile: dest=/etc/sysconfig/network regexp=^IPV6INIT= line=IPV6INIT=no state=present create=yes
+   - name: 'Clock Settings'
+     lineinfile: dest=/etc/sysconfig/clock regexp=^ZONE= line=ZONE="Etc/UTC" state=present create=yes
+     lineinfile: dest=/etc/sysconfig/clock regexp=^UTC= line=UTC=true state=present create=yes
+   - name: 'Set UTC for localtime'
+     shell: cat /usr/share/zoneinfo/UTC > /etc/localtime creates=/etc/localtime
+   - name: 'Create iptables'
+     action: template src=../templates/iptables.j2 dest=/etc/sysconfig/iptables
+     notify:
+     - restart iptables
+   - name: 'Create/Modiy sshd_config '
+     action: template src=../templates/sshd_config.j2 dest=/etc/ssh/sshd_config
+     notify:
+     - restart sshd
+   - name: 'Copy S3cfg'
+     action: template src=../templates/s3cfg.j2 dest=/root/.s3cfg
+# SELINUX - DISABLE
+   - name: 'Disable Selinux in config'
+     lineinfile: dest=/etc/selinux/config regexp=^SELINUX= line=SELINUX=disabled state=present create=yes
+   - name: 'Selinux - Targetted in config'
+     lineinfile: dest=/etc/selinux/config regexp=^SELINUXTYPE= line=SELINUXTYPE=targeted state=present create=yes
+   - name: 'GET  SELINUX - Running Status'
+     shell: getenforce
+     register: selin_status
+     failed_when: "'FAILED' in selin_status.stderr"
+     changed_when: False
+   - name: 'Set SELINUX OFF - Until Reboot'
+     shell: setenforce Permissive
+     when: selin_status.stdout == 'Enforcing'
+     failed_when: "'FAILED' in selin_status.stderr"
+   - name: 'Resize Primary Disk - @ AWS'
+     shell: sudo resize2fs /dev/xvde
+     when: ansible_eth0.ipv4.address not in groups['alldatacenterhosts']
+## Manage services
+   - name: 'Manage required Services'
+     service: name={{ item.name }} state={{ item.state }} enabled={{ item.enabled }}
+     with_items:
+     - { name: 'ip6tables', state: 'stopped', enabled: 'no' }
+     - { name: 'iptables', state: 'started', enabled: 'yes' }
+     - { name: 'sshd', state: 'started', enabled: 'yes' }
+     - { name: 'ntpd', state: 'started', enabled: 'yes' }

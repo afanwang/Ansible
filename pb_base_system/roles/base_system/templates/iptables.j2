@@ -1,0 +1,113 @@
+# {{ ansible_managed }}
+#Common-stuff
+*filter
+:INPUT ACCEPT [0:0]
+:FORWARD ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+-A INPUT -i lo -j ACCEPT
+#Standard open ports ssh, nrpe , ntp
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 5666,22 -j ACCEPT
+-A INPUT -p udp -m state --state NEW -m multiport --dports 123 -j ACCEPT
+{% if ansible_eth0.ipv4.address in groups['icinga'] %}
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 80,443 -j ACCEPT
+# NSCA & IDOMOD
+-A INPUT -p tcp -m state --state NEW -m multiport --dport 5667,5668 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['graphite'] %}
+#Graphite
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 80,2003 -j ACCEPT
+-A INPUT -p udp -m state --state NEW -m multiport --dports 2003 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['smtp-server'] %}
+#SMTP
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 25 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-arts'] %}
+#Arts
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 8080,8081,1443,1543 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-cassandra'] %}
+#Cassandra
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 7000,7199,8888,57311,57312,9042,9160,61620,61621 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-mqueue'] %}
+#MQueue (RabbitMQ)
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 4369,5672,15672,25672 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-mongodb'] %}
+#Mongodb
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 27017 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-mariadb'] %}
+#MariaDB
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 3306 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-webapps'] %}
+#Web
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 8080,1443,1543 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-di'] %}
+#DI
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 8080,1443,1543 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-batch'] %}
+#Batch
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 8080,1443,1543 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['crypto-server'] %}
+#Crypto Server
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 1543 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-es'] %}
+#Hadoop
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 7180,8080,9160,8888,61621,8012,8983,50031,7199,61620 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-payments'] %}
+#Payment
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 1443,1543 -j ACCEPT
+# -A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 1192,1193,1194,1195,1198,1199,1201,1202 -j ACCEPT
+-A INPUT -p udp -m state --state NEW -m udp -m multiport --dports 1192,1193,1194,1195,1196,1197,1198,1199,1201,1202,1203,1204 -j ACCEPT
+-A INPUT -i tun+ -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['test-payment-platform'] %}
+#Payment-TESTPLATFORM
+-A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 1443,1543 -j ACCEPT
+-A INPUT -p tcp -m state --state NEW -m tcp -m multiport --dports 1200 -j ACCEPT
+-A INPUT -p udp -m state --state NEW -m udp -m multiport --dports 1200 -j ACCEPT
+-A INPUT -i tun+ -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['logstash-eredis'] %}
+#Logstash-Server (Redis+ES)
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 7963,9200,9292,9300 -j ACCEPT
+-A INPUT -p udp -m state --state NEW -m multiport --dports 514 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['logstash-eweb'] %}
+#Logstash-Server (Redis+ES)
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 7077,9200,9292,9300 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['nexus'] %}
+#NEXUS
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 80 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-buildservers'] %}
+#BUILD-SYSTEMS
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 8090,40981 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['all-spark-servers'] %}
+#SPARK-SERVERS
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 4040,4041,4042,8080,18080,8081,8082,7077,5222,5269,9090 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['vpn-servers'] %}
+#VPN-SERVERS
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 443,943 -j ACCEPT
+-A INPUT -p udp -m state --state NEW -m multiport --dports 1194 -j ACCEPT
+{% endif %}
+{% if ansible_eth0.ipv4.address in groups['loadbalancer'] %}
+#LOADBALANCER
+-A INPUT -p tcp -m state --state NEW -m multiport --dports 80,443 -j ACCEPT
+{% endif %}
+#Common-end
+-A INPUT -p icmp -j ACCEPT
+-A INPUT -j DROP
+COMMIT

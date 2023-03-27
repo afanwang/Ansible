@@ -1,0 +1,70 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>{{ DESC }}</description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>-1</daysToKeep>
+    <numToKeep>10</numToKeep>
+    <artifactDaysToKeep>-1</artifactDaysToKeep>
+    <artifactNumToKeep>-1</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@2.0.3">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <name>qa</name>
+        <url>{{ GIT_USER }}@{{ GIT_BASE }}:{{ GIT_REPO }}</url>
+        <credentialsId>{{ GIT_CREDENTIALS }}</credentialsId>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>{{ BRANCH }}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <assignedNode>{{ NODE_2_RUN }}</assignedNode>
+  <canRoam>false</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>jdk 1.6.45 (Oracle)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <org.jfrog.hudson.maven3.Maven3Builder plugin="artifactory@2.2.1">
+      <mavenName>maven 3.0.5</mavenName>
+      <rootPom>android/pom.xml</rootPom>
+      <goals>clean deploy -P build-{{ ENV }},sign -U</goals>
+      <mavenOpts></mavenOpts>
+    </org.jfrog.hudson.maven3.Maven3Builder>
+{% if Dversion is defined %}  
+    <hudson.tasks.Shell>
+      <command>cd {{ APK_FOLDER }}; find -name &apos;{{ APK_FILE }}&apos;  -exec echo -n &apos;{}&apos; &apos;:&apos; \; -exec basename &apos;{}&apos; \;| while read array; do $JENKINS_MAVEN_HOME/bin/mvn deploy:deploy-file -DgroupId=com.company.android -DartifactId=`echo &quot;$array&quot; | cut -d \: -f 2 | sed &apos;s/\.[^\.]*$//&apos;` -Dversion={{ Dversion }} -Dpackaging=apk -Dfile=`echo &quot;$array&quot; | cut -d \: -f 1` -DrepositoryId=companyRepo-snapshots -Durl=http://test.company/content/repositories/snapshots/; done;</command>
+    </hudson.tasks.Shell>
+{% endif %}   
+{% if artifactId1 is defined %}
+    <hudson.tasks.Shell>
+      <command>version={{ VERSION }}
+      artifactId={{ artifactId1 }}
+      branchName={{ ENV }}
+      ssh admin@{{ SSH_SERVER }} &quot;/home/admin/updateNexusOneArtifact.sh $artifactId $version $branchName&quot;</command>
+    </hudson.tasks.Shell>
+{% endif %}
+{% if artifactId2 is defined %}
+    <hudson.tasks.Shell>
+      <command>version={{ VERSION }}
+      artifactId={{ artifactId2 }}
+      branchName={{ ENV }}
+      ssh admin@{{ SSH_SERVER }} &quot;/home/admin/updateNexusOneArtifact.sh $artifactId $version $branchName&quot;</command>
+    </hudson.tasks.Shell>
+{% endif %}
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

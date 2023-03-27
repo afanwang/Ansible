@@ -1,0 +1,9 @@
+---
+- hosts: '{{ target }}'
+  user: '{{ user }}'
+  sudo: yes
+  vars_files:
+  - "group_vars/mongodb_access.yml"
+  roles:
+  - mongodb_server
+  #- { role: mongodb_replicas, when: "ansible_eth0.ipv4.address in groups['all-mongodb-replicas']" }

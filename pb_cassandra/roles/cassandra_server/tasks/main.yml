@@ -1,0 +1,57 @@
+---
+  - name: Create InstallDirectory
+    file: path={{ install_dir }} owner=test_user group=test mode=777 state=directory recurse=true
+  - name: Check Cassandra Install Status
+    shell: ls -d {{ install_dir }}/*/ | grep {{ CASS_VERSION }}
+    register: cass_status
+    failed_when: "'FAILED' in cass_status.stderr"
+    changed_when: False
+#  - debug: msg="{{ cass_status.stdout }}"
+  - name: 'Downloading Apache-Cassandra from S3'
+    shell: /usr/bin/s3cmd get s3://apps-bin/webapps/apache-cassandra-{{ CASS_VERSION }}-bin.tar.gz --force chdir={{ install_dir }}
+    when: cass_status.stdout != '{{ install_dir }}/apache-cassandra-{{ CASS_VERSION }}/'
+  - name: 'Installing Cassandra' 
+    shell: yes | tar -xvf {{ install_dir }}/apache-cassandra-{{ CASS_VERSION }}-bin.tar.gz chdir={{ install_dir }}
+    when: cass_status.stdout != '{{ install_dir }}/apache-cassandra-{{ CASS_VERSION }}/' 
+  - name: 'create DATA/LOG directories'
+    file: path={{ item.path }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }} state={{ item.dir }} recurse=true 
+    with_items:
+    - { path: '/data', owner: 'test_user', group: 'test', mode: '764', dir: 'directory' }
+  #  - { path: '/var/lib/cassandra', owner: 'test_user', group: 'test', mode: '777', dir: 'link' }
+    - { path: '/data/cassandra/log', owner: 'test_user', group: 'test', mode: '777', dir: 'directory' }
+  - name: 'Change Ownership'
+    file: path={{ install_dir }}/apache-cassandra-{{ CASS_VERSION }} owner=test_user group=test state=directory recurse=true
+  - name: 'Modify Java Properties' 
+    lineinfile: dest=/home/test_user/.bashrc regexp="^export JAVA_HOME" line='export JAVA_HOME="/usr/java/jdk1.7.0_45"' state=present create=yes
+  - name: 'Create HeapDump directory'
+    file: path=/tmp/test/heapdumps owner=test_user group=test mode=0777 state=directory
+  - name: 'Rollout cassandra.xml'
+    template: src=../templates/cassandra.yaml.j2 dest={{ install_dir }}/apache-cassandra-{{ CASS_VERSION }}/conf/cassandra.yaml
+  - name: 'Schema update'
+    template: src=../templates/{{ CASS_SCHEMA }}.j2 dest={{ install_dir }}/{{ CASS_SCHEMA }}
+    register: schema
+  - name: 'Init Script for Cassandra'
+    template: src=../templates/cassandra_init.sh.j2 dest=/etc/init.d/cassandra mode=777
+ #   register: cassinit
+  - name: 'Service enable and Start'
+    action: service name=cassandra state=started enabled=yes
+  - name: 'Add link to support Nagios-Plugin'
+    file: src={{ install_dir }}/apache-cassandra-{{ CASS_VERSION }} dest=/usr/share/cassandra state=link 
+ # - debug: msg="{{ schema.changed }}"
+  - name: 'Wait for service start'
+    shell: sleep 30
+    when: schema.changed
+  - name: 'Fresh Schema Update'
+    shell: "{{ install_dir }}/apache-cassandra-{{ CASS_VERSION }}/bin/cqlsh {{ ansible_eth0.ipv4.address }} -f {{ install_dir }}/{{ CASS_SCHEMA }}"
+    when: schema.changed
+  - name: 'Modify Limits/Security/Sysctrl for Cassandra' 
+    lineinfile: dest={{ item.dst }} regexp="{{ item.regex }}" line="{{ item.line }}" state={{ item.state }} create={{ item.create }}
+    with items:
+    - { dst: '/etc/security/limits.d/cassandra.conf', regex: '^test_user - memlock', line: 'test_user - memlock unlimited', state: 'present', create: 'yes'}
+    - { dst: '/etc/security/limits.d/cassandra.conf', regex: '^test_user - nofile', line: 'test_user - nofile 100000', state: 'present', create: 'yes'}
+    - { dst: '/etc/security/limits.d/cassandra.conf', regex: '^test_user - nproc', line: 'test_user - nproc 32768', state: 'present', create: 'yes'}
+    - { dst: '/etc/security/limits.d/cassandra.conf', regex: '^test_user - as', line: 'test_user - as unlimited', state: 'present', create: 'yes'}
+    - { dst: '/etc/sysctl.conf', regex: '^vm.max_map_count', line: 'vm.max_map_count = 131072', state: 'present', create: 'yes'}
+    - { dst: '/etc/security/limits.d/90-nproc.conf', regex: '^soft    nproc     1024', line: '* - nproc 32768', state: 'present', create: 'yes'}
+    notify:
+     - reload-sysctl

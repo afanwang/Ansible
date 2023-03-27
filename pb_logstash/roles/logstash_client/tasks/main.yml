@@ -1,0 +1,72 @@
+---
+  - name: 'Check logstash Jar file '
+    shell: ls {{ logstash_dir }}/bin | grep -o logstash | head -1 
+    register: ls_status
+    failed_when: "'FAILED' in ls_status.stderr"
+    changed_when: False
+  - name: 'Create logstash Directory and fix rights'
+    file: path={{ item.path }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }} state=directory recurse=yes
+    with_items:
+    - { path: '{{ logstash_dir }}', owner: 'root', group: 'company', mode: '776' }
+    - { path: '{{ logstash_dir }}/patterns', owner: 'root', group: 'company', mode: '776' }
+    - { path: '/opt/logstash/patterns', owner: 'root', group: 'company', mode: '776' }
+  - name: 'Downloading logstash-tar from S3'
+    shell: wget "https://s3-us-west-1.amazonaws.com/apps-bin/misc/logstash-1.4.2.tar.gz" --no-check-certificate  chdir=/usr/local/bin/ 
+    when: ls_status.stdout != 'logstash'
+  - name: 'Installing logstash-tar from Downloaded file'
+    shell: tar -xvf logstash-1.4.2.tar.gz chdir=/usr/local/bin/ 
+    when: ls_status.stdout != 'logstash'
+  - name: 'Installing Contrib using plugin'
+    shell:  bin/plugin install contrib chdir={{ logstash_dir }}
+    when: ls_status.stdout != 'logstash'    
+## Install Grok dependency tools
+  - name: 'Install Grok tools'
+    yum:  name={{ item }} state=installed
+    with_items:
+    - gcc
+    - gperf
+    - make
+    - libevent-devel
+    - pcre-devel
+    - tokyocabinet-devel
+## Indexer Configuration (Server)
+  - name: 'Copy Index-Conf file'
+    template: src={{ item.source }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+    with_items:
+    - { source: '../templates/indexer.conf.j2', dst: '/etc/indexer.conf', owner: 'root', group: 'company', mode: '755' }
+    - { source: '../templates/init_logstash-indexer.sh.j2', dst: '/etc/init.d/logstash-indexer', owner: 'root', group: 'company', mode: '755' }
+    notify:
+    - restart-logstash-indexer
+    when: ansible_eth0.ipv4.address in groups['logstash-eredis']
+## WEB Configuration (Server)
+  - name: 'Copy Web-Conf file'
+    template: src={{ item.source }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+    with_items:
+    - { source: '../templates/web.conf.j2', dst: '/etc/web.conf', owner: 'root', group: 'company', mode: '755' }
+    - { source: '../templates/init_logstash-web.sh.j2', dst: '/etc/init.d/logstash-web', owner: 'root', group: 'company', mode: '755' }
+    notify:
+    - restart-logstash-web
+    when: ansible_eth0.ipv4.address in groups['logstash-eweb']
+## Shipper Configuration (Clients)
+  - name: 'Copy Init/Grok script file'
+    template: src={{ item.source }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+    with_items:
+    - { source: '../templates/init_logstash-shipper.sh.j2', dst: '/etc/init.d/logstash-shipper', owner: 'root', group: 'company', mode: '766' }
+    - { source: '../templates/grok-patterns.j2', dst: '/opt/logstash/patterns/grok-patterns', owner: 'root', group: 'company', mode: '776' }
+    - { source: '../templates/grok-patterns2.j2', dst: '/opt/logstash/patterns/grok-patterns2', owner: 'root', group: 'company', mode: '776' }
+    - { source: '../templates/grok-syslog.j2', dst: '/opt/logstash/patterns/grok-syslog', owner: 'root', group: 'company', mode: '755' }
+    notify:
+    - restart-logstash-shipper
+  - name: 'Copy Shipper-Conf file to All other Clients'
+    template: src={{ item.source }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+    with_items:
+    - { source: '../templates/shipper.conf.j2', dst: '/etc/shipper.conf', owner: 'test_user', group: 'company', mode: '766' }
+    notify:
+  - name: 'Manage Shipper Services'
+    action: service name={{ item.name }} state={{ item.state }} enabled={{ item.enabled }}
+    with_items:
+    - { name: 'logstash-shipper', state: 'started', enabled: 'yes' }
+#  - name: "Kill previous logstash and restart"
+#    shell: kill $(ps aux | grep logstash-1.3.3-flatjar.jar | grep -v grep | awk '{print $2}')
+#    notify:
+#    - restart-logstash-shipper

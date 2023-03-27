@@ -1,0 +1,3 @@
+---
+  - include: ../pb_webapps/javaonly_install.yml hosts=${target}
+  - include: jenkins_schedular_only.yml hosts=${target}

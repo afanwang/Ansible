@@ -1,0 +1,86 @@
+---
+
+  - name: Install Jenkins repo key
+    rpm_key: state=present key=http://pkg.jenkins-ci.org/redhat/jenkins-ci.org.key
+  - name: Install Jenkins repo
+    get_url: url=http://pkg.jenkins-ci.org/redhat/jenkins.repo dest=/etc/yum.repos.d/jenkins.repo owner=root group=root mode=0644
+  - name: Install packages
+    yum: name={{ item }} state=installed
+    with_items:
+    - jenkins #jenkins repo
+    - ruby
+    - rubygems
+  - name: Install ruby packages
+    gem: name={{ item }} user_install=no state=latest include_dependencies=yes
+    with_items:
+    - rake
+    - rspec
+    - serverspec
+    - specinfra
+    - bundler
+  - name: 'create DATA/LOG directories with right permissions'
+    file: path={{ item.path }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }} state={{ item.dir }} recurse=true 
+    with_items:
+    - { path: '{{ install_dir }}', owner: 'test_user', group: 'company', mode: '764', dir: 'directory' }
+    - { path: '{{ install_dir }}/jenkins', owner: 'test_user', group: 'company', mode: '764', dir: 'directory' }
+    - { path: '{{ install_dir }}/jenkins/plugins', owner: 'test_user', group: 'company', mode: '764', dir: 'directory' }
+    - { path: '/var/log/jenkins', owner: 'test_user', group: 'company', mode: '764', dir: 'directory' }
+    - { path: '/var/cache/jenkins', owner: 'test_user', group: 'company', mode: '764', dir: 'directory' }
+    - { path: '/home/test_user/jenkins_temp', owner: 'test_user', group: 'company', mode: '764', dir: 'directory' }
+    register: newinstall
+ ## Configuration for BUILD-(master)-CI-System
+  - name: 'Sync up Plugins Dir - Required for Build system'
+    shell: /usr/bin/s3cmd sync s3://apps-bin/misc/plugins-build/ plugins chdir={{ install_dir }}/jenkins/ 
+    when: "'{{ ansible_eth0.ipv4.address }}' in groups['ci-buildmaster']"
+    notify:
+    - restart jenkins
+  - name: 'Copy Job-Folder/Users/AccessID'
+    copy: src={{ item.src }} dest={{ item.dest }} mode={{ item.mode }} owner={{ item.owner }} group={{ item.group }}
+    with_items:
+    - { src: '../files/users/', dest: '{{ install_dir }}/jenkins/users/', owner: 'test_user', group: 'company', mode: '764' } 
+    - { src: '../files/identity.key', dest: '{{ install_dir }}/jenkins/identity.key', owner: 'test_user', group: 'company', mode: '600' } 
+    - { src: '../files/secret.key', dest: '{{ install_dir }}/jenkins/secret.key', owner: 'test_user', group: 'company', mode: '644' } 
+    - { src: '../files/ssh/git_id_rsa', dest: '/home/test_user/.ssh/git_id_rsa', owner: 'test_user', group: 'company', mode: '400' }
+    - { src: '../files/ssh/id_rsa', dest: '/home/test_user/.ssh/id_rsa', owner: 'test_user', group: 'company', mode: '400' }
+    - { src: '../files/ssh/id_rsa.pub', dest: '/home/test_user/.ssh/id_rsa.pub', owner: 'test_user', group: 'company', mode: '400' }
+    - { src: '../files/ssh/known_hosts', dest: '/home/test_user/.ssh/known_hosts', owner: 'test_user', group: 'company', mode: '644' }
+    when: "'{{ ansible_eth0.ipv4.address }}' in groups['ci-buildmaster']"
+ ## Below in future we should templatize user creation - currently hardcoded
+  - name: 'Git credentials file'
+    template: src={{ item.src }} dest={{ item.dest }} mode={{ item.mode }} owner={{ item.owner }} group={{ item.group }}
+    with_items:
+    - { src: '../templates/hudson.scm.CVSSCM.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.scm.CVSSCM.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/credentials.xml.j2', dest: '{{ install_dir }}/jenkins/credentials.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.maven.MavenModuleSet.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.maven.MavenModuleSet.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.model.UpdateCenter.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.model.UpdateCenter.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.plugins.depgraph_view.DependencyGraphProperty.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.plugins.depgraph_view.DependencyGraphProperty.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.plugins.emailext.ExtendedEmailPublisher.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.plugins.emailext.ExtendedEmailPublisher.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.plugins.git.GitSCM.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.plugins.git.GitSCM.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.plugins.git.GitTool.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.plugins.git.GitTool.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.tasks.Ant.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.tasks.Ant.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.tasks.Mailer.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.tasks.Mailer.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.tasks.Maven.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.tasks.Maven.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.tasks.Shell.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.tasks.Shell.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.tools.JDKInstaller.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.tools.JDKInstaller.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/hudson.triggers.SCMTrigger.xml.j2', dest: '{{ install_dir }}/jenkins/hudson.triggers.SCMTrigger.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/jenkins.model.ArtifactManagerConfiguration.xml.j2', dest: '{{ install_dir }}/jenkins/jenkins.model.ArtifactManagerConfiguration.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/jenkins.model.JenkinsLocationConfiguration.xml.j2', dest: '{{ install_dir }}/jenkins/jenkins.model.JenkinsLocationConfiguration.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/jenkins.mvn.GlobalMavenConfig.xml.j2', dest: '{{ install_dir }}/jenkins/jenkins.mvn.GlobalMavenConfig.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/jenkins.security.QueueItemAuthenticatorConfiguration.xml.j2', dest: '{{ install_dir }}/jenkins/jenkins.security.QueueItemAuthenticatorConfiguration.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/org.jenkinsci.plugins.gitclient.JGitTool.xml.j2', dest: '{{ install_dir }}/jenkins/org.jenkinsci.plugins.gitclient.JGitTool.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/org.jenkinsci.plugins.test.NexusTaskPublisher.xml.j2', dest: '{{ install_dir }}/jenkins/org.jenkinsci.plugins.test.NexusTaskPublisher.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/org.jfrog.hudson.ArtifactoryBuilder.xml.j2', dest: '{{ install_dir }}/jenkins/org.jfrog.hudson.ArtifactoryBuilder.xml', mode: '764', owner: 'test_user', group: 'company' }
+    - { src: '../templates/org.jvnet.hudson.plugins.m2release.M2ReleaseBuildWrapper.xml.j2', dest: '{{ install_dir }}/jenkins/org.jvnet.hudson.plugins.m2release.M2ReleaseBuildWrapper.xml', mode: '764', owner: 'test_user', group: 'company' }
+#    - { src: '../templates/', dest: '{{ install_dir }}/jenkins/', mode: '764', owner: 'test_user', group: 'company' }
+    when: "'{{ ansible_eth0.ipv4.address }}' in groups['ci-buildmaster']"  
+  # tools sync to be done.. currently copied manually
+  #- name: Change the Ansible config file
+  #  lineinfile: dest=/etc/ansible/ansible.cfg  regexp="^#host_key_checking = False" line="host_key_checking = False"
+  # - name: Add jenkins private key for git access
+  #  copy: src=jenkins_private.key dest=/var/lib/jenkins/.ssh/id_rsa owner=jenkins group=jenkins mode=0400
+  - name: Copy conf file
+    template: src=../templates/jenkins.j2 dest=/etc/sysconfig/jenkins owner=root group=root mode=644
+    notify:
+    - restart jenkins
+  - name: Ensure jenkins is Enabled and Running
+    service: name=jenkins state=started enabled=yes

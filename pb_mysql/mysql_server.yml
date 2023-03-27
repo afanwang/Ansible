@@ -1,0 +1,9 @@
+---
+- hosts: '{{ target }}'
+  user: '{{ user }}'
+  sudo: yes
+  vars_files:
+  - "group_vars/mysql_access.yml"
+  roles:
+  - mysql_client
+  - mysql_server

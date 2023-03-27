@@ -1,0 +1,9 @@
+---
+  - name: restart-elasticsearch
+    action: service name=elasticsearch state=restarted enabled=yes
+  - name: restart-redis
+    action: service name=redis state=restarted enabled=yes
+  - name: restart-kibana
+    action: service name=kibana state=restarted enabled=yes
+  - name: restart-crond
+    action: service name=crond state=restarted

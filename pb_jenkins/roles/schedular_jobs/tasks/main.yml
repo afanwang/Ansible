@@ -1,0 +1,22 @@
+---
+ ## Job Configuration for Schedular Servers 
+  - name: "Copy/Sync Job-Folder"
+    copy: src=../files/schedule-jobs/ dest={{ install_dir }}/jenkins/jobs/ mode=764 owner=test_user group=company
+    when: "'{{ ansible_eth0.ipv4.address }}' in groups['all-schedular']"
+  - name: 'Copy Daily-Job-Configurations'
+    template: src={{ item.source }} dest={{ item.dst }} owner={{ item.owner }} group={{ item.group }} mode=764
+    with_items:
+    # - { source: '../templates/schedule-jobs/daily-config.xml.j2', dst: '{{ install_dir }}/jenkins/jobs/Daily_Report_Continuous/config.xml', owner: 'test_user', group: 'company' }
+    - { source: '../templates/schedule-jobs/monthly-config.xml.j2', dst: '{{ install_dir }}/jenkins/jobs/Monthly_Report_Continuous/config.xml', owner: 'test_user', group: 'company' }
+    # - { source: '../templates/schedule-jobs/weekly-config.xml.j2', dst: '{{ install_dir }}/jenkins/jobs/Weekly_Report_Continuous/config.xml', owner: 'test_user', group: 'company' }
+    when: "'{{ ansible_eth0.ipv4.address }}' in groups['all-schedular']"
+    notify:
+    - restart jenkins
+  - name: Copy conf file
+    template: src=../templates/jenkins.j2 dest=/etc/sysconfig/jenkins owner=root group=root mode=644
+    notify:
+    - restart jenkins
+  - name: Ensure jenkins is Enabled and Running
+    service: name=jenkins state=started enabled=yes
+
+    

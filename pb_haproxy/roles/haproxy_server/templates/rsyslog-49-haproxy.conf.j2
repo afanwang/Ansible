@@ -1,0 +1,5 @@
+# putt this in /etc/rsyslog.d/49-haproxy.conf:
+local0.* -/var/log/haproxy/haproxy_0.log
+local1. –/var/log/haproxy/haproxy_1.log
+if ($programname == 'haproxy') then -/var/log/haproxy/haproxy.log
+& ~

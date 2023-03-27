@@ -1,0 +1,17 @@
+---
+# START REPLICA-PARTNERS CONFIG
+  - name: 'Copy Conf file (Replication Servers)'
+    template: src=../templates/mongod_repl.conf.j2 dest=/etc/mongod.conf owner=root mode=644
+    when: ansible_eth0.ipv4.address in groups['all-mongodb-replicas']
+    notify: restart-mongodb
+  - name: 'Create KeyFile'
+    lineinfile: dest=/etc/mongo_repl.key regexp="^REpl1caT10nPartner" line='REpl1caT10nPartner' state=present create=yes owner=mongod mode=700
+    when: ansible_eth0.ipv4.address in groups['all-mongodb-replicas']
+    notify:
+     - restart-mongodb
+#  - name: host-file modification
+#    lineinfile: dest=/etc/hosts regexp="^{{ item }}" line='{{ item }}   {{ inventory_hostname }}' state=present create=yes 
+#    with_items:groups[{{ ENV }}_mongodb ]
+#    when: ansible_eth0.ipv4.address in groups['prod*-mongodb']
+#  - name: 'Copy Conf file with dbadmin password credentials'
+#    template: src=../templates/mongod.cnf.j2 dest=/root/.mongod.cnf owner=root mode=600

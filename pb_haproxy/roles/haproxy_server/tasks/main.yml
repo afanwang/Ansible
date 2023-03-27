@@ -1,0 +1,25 @@
+---
+# TASK: Install and configure HAProxy – centos style
+- name: Install HAProxy
+  yum: name={{ item.package }} state={{ item.state }} 
+  with_items:
+    - { package: 'haproxy', state: 'present' }
+- name: Enable HAProxy service
+  action: service name=haproxy enabled=yes
+- name: Copy HAproxy-Config file
+  template: src=../templates/haproxy.cfg.j2 dest=/etc/haproxy/haproxy.cfg owner=root group=root mode=644
+  notify: restart haproxy
+- name: Copy Rsyslog file
+  template: src=../templates/rsyslog-49-haproxy.conf.j2 dest=/etc/rsyslog.d/49-haproxy.conf owner=root group=root mode=644
+  notify: restart rsyslog
+- name: Copy logrotate file
+  template: src=../templates/logrotate-haproxy.j2 dest=/etc/logrotate.d/logrotate-haproxy owner=root group=root mode=644
+- name: Create SSl Directory
+  file: path=/etc/ssl_private owner=root group=root mode=755 state=directory
+- name: Copy SSL-Pem file
+  copy: src={{ item.src }}  dest={{ item.dest }} owner={{ item.owner }} group={{ item.group }} mode={{ item.mode }}
+  with_items:
+    - { src: '../files/test.us.csr', dest: '/etc/ssl_private/test.us.csr', owner: 'root', group: 'root', mode: '644' }
+    - { src: '../files/test.us.key', dest: '/etc/ssl_private/test.us.key', owner: 'root', group: 'root', mode: '644' }
+    - { src: '../files/test.us.pem', dest: '/etc/ssl_private/test.us.pem', owner: 'root', group: 'root', mode: '644' }
+  notify: restart haproxy
